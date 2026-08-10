@@ -5,7 +5,6 @@ const DATABASE_URL =
   process.env.DATABASE_URL ||
   process.env.HASURA_GRAPHQL_DATABASE_URL ||
   process.env.POSTGRES_URL
-  process.env.WEBHOOK_SECRET
 
 async function getClient() {
   if (!DATABASE_URL) {
@@ -18,8 +17,22 @@ async function getClient() {
 }
 
 module.exports = async (req, res) => {
-  const { workflow_id, secret } = req.body || {}
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end()
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      message: 'Method not allowed',
+    })
+  }
+
+  const { workflow_id, secret } = req.body || {}
   if (!workflow_id || !secret) {
     return res.status(400).json({
       message: 'workflow_id and secret are required',
