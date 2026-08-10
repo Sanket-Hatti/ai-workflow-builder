@@ -2,7 +2,9 @@ const { Client } = require('pg')
 const { executeWorkflow } = require('../shared/workflowExecutor')
 
 const DATABASE_URL =
-  process.env.DATABASE_URL
+  process.env.DATABASE_URL ||
+  process.env.HASURA_GRAPHQL_DATABASE_URL ||
+  process.env.POSTGRES_URL
 
 async function getClient() {
   if (!DATABASE_URL) {
