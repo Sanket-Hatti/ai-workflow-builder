@@ -20,12 +20,10 @@ async function getClient() {
   return client
 }
 
-
 module.exports = async (req, res) => {
   const { input, session_variables } = req.body
 
   const stepRunId = input?.step_run_id
-
   const userId =
     session_variables?.['x-hasura-user-id']
 
@@ -40,7 +38,7 @@ module.exports = async (req, res) => {
 
   try {
     /*
-     * Find the paused approval step.
+     * 1. Find the approval step and its workflow/org.
      */
     const result = await client.query(
       `
@@ -50,6 +48,7 @@ module.exports = async (req, res) => {
         sr.step_id,
         sr.workflow_run_id,
         wr.workflow_id,
+        wr.status AS workflow_status,
         w.org_id
       FROM step_runs sr
       JOIN workflow_runs wr
@@ -70,7 +69,7 @@ module.exports = async (req, res) => {
     const row = result.rows[0]
 
     /*
-     * Must actually be waiting for approval.
+     * 2. The step must actually be waiting for approval.
      */
     if (row.status !== 'awaiting_approval') {
       return res.status(400).json({
@@ -80,7 +79,18 @@ module.exports = async (req, res) => {
     }
 
     /*
-     * Verify approver belongs to the same organization.
+     * 3. The workflow must currently be paused.
+     */
+    if (row.workflow_status !== 'paused') {
+      return res.status(400).json({
+        message:
+          'This workflow is not paused',
+      })
+    }
+
+    /*
+     * 4. Verify the approver belongs to the
+     *    workflow's organization and has permission.
      */
     const memberResult = await client.query(
       `
@@ -108,9 +118,12 @@ module.exports = async (req, res) => {
     }
 
     /*
-     * Mark approval.
+     * 5. Atomically approve the step.
+     *
+     * The status condition prevents two concurrent
+     * approval requests from approving the same step.
      */
-    await client.query(
+    const approvalResult = await client.query(
       `
       UPDATE step_runs
       SET
@@ -119,6 +132,8 @@ module.exports = async (req, res) => {
         approved_at = now(),
         ended_at = now()
       WHERE id = $1
+        AND status = 'awaiting_approval'
+      RETURNING id
       `,
       [
         stepRunId,
@@ -126,20 +141,35 @@ module.exports = async (req, res) => {
       ]
     )
 
+    if (approvalResult.rowCount === 0) {
+      return res.status(409).json({
+        message:
+          'This approval step has already been processed',
+      })
+    }
+
     /*
-     * Resume workflow.
+     * 6. Mark the workflow as running again.
      */
     await client.query(
       `
       UPDATE workflow_runs
       SET status = 'running'
       WHERE id = $1
+        AND status = 'paused'
       `,
       [row.workflow_run_id]
     )
 
     /*
-     * Continue with the SAME workflow executor.
+     * 7. IMPORTANT:
+     *
+     * Resume through the SAME workflow executor.
+     *
+     * This means remaining LLM, HTTP, DB,
+     * conditional and notification steps are
+     * actually executed instead of merely being
+     * marked as succeeded.
      */
     const executionResult =
       await executeWorkflow({
@@ -150,17 +180,15 @@ module.exports = async (req, res) => {
       })
 
     /*
-     * If workflow finished successfully,
-     * increment quota.
-     *
-     * NOTE:
-     * We'll later make quota accounting atomic.
+     * 8. Consume one organization quota call
+     *    only when the complete workflow succeeds.
      */
     if (executionResult.status === 'succeeded') {
       await client.query(
         `
         UPDATE organizations
-        SET quota_calls_used = quota_calls_used + 1
+        SET quota_calls_used =
+          quota_calls_used + 1
         WHERE id = $1
         `,
         [row.org_id]
@@ -171,13 +199,13 @@ module.exports = async (req, res) => {
       step_run_id: stepRunId,
       status: executionResult.status,
     })
-
   } catch (error) {
     console.error(error)
 
     return res.status(500).json({
       message:
-        error.message || 'Internal server error',
+        error.message ||
+        'Internal server error',
     })
   } finally {
     await client.end()
