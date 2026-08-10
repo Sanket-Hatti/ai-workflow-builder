@@ -207,53 +207,52 @@ async function runNotify(
 /**
  * Evaluate a conditional branch.
  */
-function evaluateCondition(
-  config,
-  previousOutput
-) {
+function evaluateCondition(config, previousOutput) {
   const field = config?.field
-  const operator =
-    config?.operator || 'equals'
-
+  const op = config?.operator || 'contains'
   const expected = config?.value
 
   let actual = previousOutput
 
   if (field) {
-    actual =
-      previousOutput &&
-      previousOutput[field]
-  }
-
-  switch (operator) {
-    case 'equals':
-      return actual === expected
-
-    case 'not_equals':
-      return actual !== expected
-
-    case 'contains':
-      return String(actual ?? '').includes(
-        String(expected ?? '')
-      )
-
-    case 'not_contains':
-      return !String(actual ?? '').includes(
-        String(expected ?? '')
-      )
-
-    case 'exists':
-      return actual !== undefined &&
-        actual !== null
-
-    case 'truthy':
-      return Boolean(actual)
-
-    default:
-      throw new Error(
-        `Unsupported condition operator: ${operator}`
+    actual = field
+      .split('.')
+      .reduce(
+        (value, key) => value?.[key],
+        previousOutput
       )
   }
+
+  if (op === 'contains') {
+    return String(actual ?? '').includes(
+      String(expected)
+    )
+  }
+
+  if (op === 'not_contains') {
+    return !String(actual ?? '').includes(
+      String(expected)
+    )
+  }
+
+  if (op === 'equals') {
+    return actual === expected
+  }
+
+  if (op === 'not_equals') {
+    return actual !== expected
+  }
+
+  if (op === 'exists') {
+    return actual !== undefined &&
+      actual !== null
+  }
+
+  if (op === 'truthy') {
+    return Boolean(actual)
+  }
+
+  return false
 }
 
 
