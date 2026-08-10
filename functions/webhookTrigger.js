@@ -5,7 +5,7 @@ const DATABASE_URL =
   process.env.DATABASE_URL ||
   process.env.HASURA_GRAPHQL_DATABASE_URL ||
   process.env.POSTGRES_URL
-  process.env.NHOST_WEBHOOK_SECRET
+  process.env.WEBHOOK_SECRET
 
 async function getClient() {
   if (!DATABASE_URL) {
@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
     })
   }
 
-  if (secret !== process.env.NHOST_WEBHOOK_SECRET) {
+  if (secret !== process.env.WEBHOOK_SECRET) {
     return res.status(401).json({
       message: 'Invalid webhook secret',
     })
