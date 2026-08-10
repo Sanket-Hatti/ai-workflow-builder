@@ -1,5 +1,5 @@
 const { Client } = require('pg')
-const { executeWorkflow } = require('./workflowExecutor')
+const { executeWorkflow } = require('./lib/workflowExecutor')
 
 const DATABASE_URL =
   process.env.HASURA_GRAPHQL_DATABASE_URL ||
