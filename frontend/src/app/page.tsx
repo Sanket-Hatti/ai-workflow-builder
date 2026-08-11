@@ -52,27 +52,8 @@ const GET_WORKFLOW_DETAILS = gql`
     step_order
     config
     created_at
+}
     }
-
-    workflow_triggers(
-      where: { workflow_id: { _eq: $workflow_id } }
-    ) {
-      id
-      workflow_id
-      type
-      config
-    }
-  }
-`
-const GET_CURRENT_STEP_ORDERS = gql`
-  query GetCurrentStepOrders($workflow_id: uuid!) {
-    workflow_steps(
-      where: { workflow_id: { _eq: $workflow_id } }
-      order_by: { step_order: desc }
-    ) {
-      step_order
-    }
-  }
 `
 
 const TRIGGER_WORKFLOW = gql`
