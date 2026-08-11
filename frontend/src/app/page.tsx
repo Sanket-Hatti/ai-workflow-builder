@@ -496,6 +496,17 @@ export default function Home() {
   async function handleAddStep() {
   if (!selectedWorkflow) return
 
+  if (
+  (newStepType === 'db_write' ||
+    newStepType === 'notify') &&
+  myRole !== 'owner'
+) {
+  setMessage(
+    'Only an owner can add db_write or notify steps.'
+  )
+  return
+}
+
   try {
     let parsedConfig = {}
 
