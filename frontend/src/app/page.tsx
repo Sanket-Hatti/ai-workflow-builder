@@ -110,7 +110,7 @@ const APPROVE_STEP = gql`
 const INSERT_STEP = gql`
   mutation InsertStep(
     $workflow_id: uuid!
-    $type: String!
+    $type: step_type!
     $config: jsonb!
   ) {
     insert_workflow_steps_one(
