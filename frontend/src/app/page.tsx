@@ -22,6 +22,19 @@ const GET_WORKFLOWS = gql`
   }
 `
 
+const GET_MY_ORG_INFO = gql`
+  query GetMyOrgInfo {
+    org_members {
+      role
+      organization {
+        name
+        quota_calls_used
+        quota_calls_allowed
+      }
+    }
+  }
+`
+
 const TRIGGER_WORKFLOW = gql`
   mutation TriggerWorkflowRun($workflow_id: uuid!) {
     triggerWorkflowRun(workflow_id: $workflow_id) {
@@ -79,6 +92,17 @@ type TriggerResult = {
   }
 }
 
+type OrgInfo = {
+  org_members: {
+    role: string
+    organization: {
+      name: string
+      quota_calls_used: number
+      quota_calls_allowed: number
+    }
+  }[]
+}
+
 export default function Home() {
   const router = useRouter()
   const { isAuthenticated, isLoading: authLoading } =
@@ -98,6 +122,15 @@ export default function Home() {
     skip: !isAuthenticated,
     fetchPolicy: 'network-only',
   })
+
+  const { data: orgData } = useQuery<OrgInfo>(GET_MY_ORG_INFO, {
+    skip: !isAuthenticated,
+    fetchPolicy: 'network-only',
+  })
+
+  const myMembership = orgData?.org_members?.[0]
+  const myRole = myMembership?.role
+  const org = myMembership?.organization
 
   const [triggerWorkflow, { loading: triggerLoading }] =
     useMutation<TriggerResult>(TRIGGER_WORKFLOW)
@@ -204,6 +237,18 @@ if (!isAuthenticated) {
           </div>
 
           <div className="flex items-center gap-4">
+            {org && (
+              <div className="text-right">
+                <p className="text-sm font-medium">
+                  {org.name}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Quota: {org.quota_calls_used} / {org.quota_calls_allowed}
+                  {myRole ? ` · ${myRole}` : ''}
+                </p>
+              </div>
+            )}
+
             <div className="text-right">
               <p className="text-sm font-medium">
                 {user?.email}
@@ -319,15 +364,17 @@ if (!isAuthenticated) {
                   </p>
                 </div>
 
-                <button
-                  onClick={handleRun}
-                  disabled={triggerLoading}
-                  className="rounded-lg bg-blue-600 px-6 py-3 font-medium hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {triggerLoading
-                    ? 'Running...'
-                    : '▶ Run Workflow'}
-                </button>
+                {myRole !== 'viewer' && (
+                  <button
+                    onClick={handleRun}
+                    disabled={triggerLoading}
+                    className="rounded-lg bg-blue-600 px-6 py-3 font-medium hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {triggerLoading
+                      ? 'Running...'
+                      : '▶ Run Workflow'}
+                  </button>
+                )}
               </div>
 
               {/* Workflow visual */}
@@ -423,7 +470,7 @@ if (!isAuthenticated) {
                           </p>
                         </div>
 
-                        {stepRun.status === 'awaiting_approval' && (
+                        {stepRun.status === 'awaiting_approval' && myRole !== 'viewer' && (
                           <button
                             onClick={() => handleApprove(stepRun.id)}
                             disabled={approveLoading}
