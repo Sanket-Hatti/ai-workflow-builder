@@ -64,6 +64,16 @@ const GET_WORKFLOW_DETAILS = gql`
     }
   }
 `
+const GET_CURRENT_STEP_ORDERS = gql`
+  query GetCurrentStepOrders($workflow_id: uuid!) {
+    workflow_steps(
+      where: { workflow_id: { _eq: $workflow_id } }
+      order_by: { step_order: desc }
+    ) {
+      step_order
+    }
+  }
+`
 
 const TRIGGER_WORKFLOW = gql`
   mutation TriggerWorkflowRun($workflow_id: uuid!) {
@@ -512,15 +522,31 @@ export default function Home() {
       return
     }
 
+    // Get the latest steps directly from Hasura
+    const { data: freshDetails } =
+      await refetchDetails()
+
     const existingSteps =
-      workflowDetails?.workflow_steps ?? []
+      freshDetails?.workflow_steps ?? []
 
     const nextStepOrder =
       existingSteps.reduce(
         (max: number, step: any) =>
-          Math.max(max, step.step_order ?? 0),
+          Math.max(
+            max,
+            step.step_order ?? 0
+          ),
         0
       ) + 1
+
+    console.log(
+      'Existing steps:',
+      existingSteps
+    )
+    console.log(
+      'Next step order:',
+      nextStepOrder
+    )
 
     await insertStep({
       variables: {
