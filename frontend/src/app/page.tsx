@@ -128,18 +128,21 @@ const UPDATE_STEP = gql`
     $id: uuid!
     $type: String!
     $config: jsonb!
+    $step_order: Int!
   ) {
     update_workflow_steps_by_pk(
       pk_columns: { id: $id }
       _set: {
         type: $type
         config: $config
+        step_order: $step_order
       }
     ) {
       id
       workflow_id
       type
       config
+      step_order
     }
   }
 `
@@ -566,6 +569,93 @@ export default function Home() {
     setMessage('')
   }
 
+  async function moveStep(
+  stepId: string,
+  direction: 'up' | 'down'
+) {
+  if (!selectedWorkflow) return
+
+  const steps =
+    workflowDetails?.workflow_steps ?? []
+
+  const currentIndex = steps.findIndex(
+    (step: any) => step.id === stepId
+  )
+
+  if (currentIndex === -1) return
+
+  const targetIndex =
+    direction === 'up'
+      ? currentIndex - 1
+      : currentIndex + 1
+
+  if (
+    targetIndex < 0 ||
+    targetIndex >= steps.length
+  ) {
+    return
+  }
+
+  const currentStep = steps[currentIndex]
+  const targetStep = steps[targetIndex]
+
+  try {
+    const temporaryOrder =
+      steps.reduce(
+        (max: number, step: any) =>
+          Math.max(
+            max,
+            step.step_order ?? 0
+          ),
+        0
+      ) + 1000
+
+    // 1. Move current step temporarily
+    await updateStep({
+      variables: {
+        id: currentStep.id,
+        type: currentStep.type,
+        config: currentStep.config ?? {},
+        step_order: temporaryOrder,
+      },
+    })
+
+    // 2. Move target step into current position
+    await updateStep({
+      variables: {
+        id: targetStep.id,
+        type: targetStep.type,
+        config: targetStep.config ?? {},
+        step_order: currentStep.step_order,
+      },
+    })
+
+    // 3. Move current step into target position
+    await updateStep({
+      variables: {
+        id: currentStep.id,
+        type: currentStep.type,
+        config: currentStep.config ?? {},
+        step_order: targetStep.step_order,
+      },
+    })
+
+    setMessage('Steps reordered successfully')
+
+    await refetchDetails()
+  } catch (error: any) {
+    console.error(error)
+
+    setMessage(
+      error?.message ||
+        'Failed to reorder steps'
+    )
+
+    await refetchDetails()
+  }
+}
+
+  
   async function saveStep() {
     if (!editingStep) return
 
@@ -587,6 +677,10 @@ export default function Home() {
           id: editingStep,
           type: editingType,
           config: parsedConfig,
+          step_order:
+            workflowDetails?.workflow_steps?.find(
+              (step: any) => step.id === editingStep
+            )?.step_order ?? 1,
         },
       })
 
@@ -1103,6 +1197,31 @@ export default function Home() {
 
                                 {myRole !== 'viewer' && (
                                   <div className="flex gap-2">
+                                    <button
+                                      onClick={() =>
+                                        moveStep(step.id, 'up')
+                                      }
+                                      disabled={index === 0}
+                                      className="rounded-lg border border-slate-700 px-3 py-2 text-xs hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-30"
+                                      title="Move step up"
+                                    >
+                                      ↑
+                                    </button>
+
+                                    <button
+                                      onClick={() =>
+                                        moveStep(step.id, 'down')
+                                      }
+                                      disabled={
+                                        index ===
+                                        (workflowDetails?.workflow_steps?.length ?? 0) - 1
+
+                                      }
+                                      className="rounded-lg border border-slate-700 px-3 py-2 text-xs hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-30"
+                                      title="Move step down"
+                                    >
+                                      ↓
+                                    </button>
 
                                     <button
                                       onClick={() =>
