@@ -43,14 +43,15 @@ const GET_MY_ORG_INFO = gql`
 const GET_WORKFLOW_DETAILS = gql`
   query GetWorkflowDetails($workflow_id: uuid!) {
     workflow_steps(
-      where: { workflow_id: { _eq: $workflow_id } }
-      order_by: { created_at: asc }
+    where: { workflow_id: { _eq: $workflow_id } }
+    order_by: { step_order: asc }
     ) {
-      id
-      workflow_id
-      type
-      config
-      created_at
+    id
+    workflow_id
+    type
+    step_order
+    config
+    created_at
     }
 
     workflow_triggers(
@@ -499,45 +500,49 @@ export default function Home() {
   }
 
   async function handleAddStep() {
-    if (!selectedWorkflow) return
+  if (!selectedWorkflow) return
+
+  try {
+    let parsedConfig = {}
 
     try {
-      let parsedConfig = {}
-
-      try {
-        parsedConfig =
-          JSON.parse(newStepConfig)
-      } catch {
-        setMessage(
-          'Invalid JSON configuration'
-        )
-        return
-      }
-
-      await insertStep({
-        variables: {
-          workflow_id: selectedWorkflow,
-          type: newStepType,
-          config: parsedConfig,
-          step_order:
-          (workflowDetails?.workflow_steps?.length ?? 0) + 1,
-        },
-      })
-
-      setNewStepConfig('{}')
-      setMessage(
-        'Step added successfully'
-      )
-
-      await refetchDetails()
-    } catch (error: any) {
-      console.error(error)
-      setMessage(
-        error?.message ||
-          'Failed to add step'
-      )
+      parsedConfig = JSON.parse(newStepConfig)
+    } catch {
+      setMessage('Invalid JSON configuration')
+      return
     }
+
+    const existingSteps =
+      workflowDetails?.workflow_steps ?? []
+
+    const nextStepOrder =
+      existingSteps.reduce(
+        (max: number, step: any) =>
+          Math.max(max, step.step_order ?? 0),
+        0
+      ) + 1
+
+    await insertStep({
+      variables: {
+        workflow_id: selectedWorkflow,
+        type: newStepType,
+        config: parsedConfig,
+        step_order: nextStepOrder,
+      },
+    })
+
+    setNewStepConfig('{}')
+    setMessage('Step added successfully')
+
+    await refetchDetails()
+  } catch (error: any) {
+    console.error(error)
+    setMessage(
+      error?.message ||
+        'Failed to add step'
+    )
   }
+}
 
   function startEditStep(
     step: WorkflowStep
