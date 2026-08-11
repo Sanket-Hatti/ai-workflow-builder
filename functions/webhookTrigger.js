@@ -39,7 +39,7 @@ module.exports = async (req, res) => {
     })
   }
 
-  if (secret !== process.env.WEBHOOK_SECRET) {
+  if (secret !== process.env.NHOST_WEBHOOK_SECRET) {
     return res.status(401).json({
       message: 'Invalid webhook secret',
     })
