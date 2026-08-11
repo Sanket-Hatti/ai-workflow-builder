@@ -1,6 +1,11 @@
 'use client'
 
-import { gql, useMutation, useQuery } from '@apollo/client'
+import {
+  gql,
+  useMutation,
+  useQuery,
+  useSubscription,
+} from '@apollo/client'
 import { useAuthenticationStatus, useSignOut, useUserData } from '@nhost/react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -25,13 +30,27 @@ const TRIGGER_WORKFLOW = gql`
     }
   }
 `
-const GET_STEP_RUNS = gql`
-  query GetStepRuns($workflow_run_id: uuid!) {
+const STEP_RUNS_SUBSCRIPTION = gql`
+  subscription StepRuns($workflow_run_id: uuid!) {
     step_runs(
-      where: { workflow_run_id: { _eq: $workflow_run_id } }
+      where: {
+        workflow_run_id: {
+          _eq: $workflow_run_id
+        }
+      }
+      order_by: {
+        created_at: asc
+      }
     ) {
       id
+      step_id
       status
+      attempt_count
+      input
+      output
+      error
+      created_at
+      ended_at
     }
   }
 `
@@ -83,17 +102,16 @@ export default function Home() {
   const [triggerWorkflow, { loading: triggerLoading }] =
     useMutation<TriggerResult>(TRIGGER_WORKFLOW)
   
-  const {
-  data: stepRunsData,
-  refetch: refetchStepRuns,
-} = useQuery(GET_STEP_RUNS, {
-  variables: {
-    workflow_run_id:
-      runResult?.triggerWorkflowRun.workflow_run_id ?? '',
-  },
-  skip: !runResult?.triggerWorkflowRun.workflow_run_id,
-  fetchPolicy: 'network-only',
-})
+  const { data: stepRunsData } = useSubscription(
+    STEP_RUNS_SUBSCRIPTION,
+    {
+      variables: {
+        workflow_run_id:
+        runResult?.triggerWorkflowRun.workflow_run_id ?? '',
+      },
+      skip: !runResult?.triggerWorkflowRun.workflow_run_id,
+    }
+  )
 
 const [approveStep, { loading: approveLoading }] =
   useMutation(APPROVE_STEP)
@@ -160,7 +178,6 @@ if (!isAuthenticated) {
         },
       })
 
-      await refetchStepRuns()
     }
   } catch (error) {
     console.error(error)
