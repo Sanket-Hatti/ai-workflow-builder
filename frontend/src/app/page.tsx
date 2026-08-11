@@ -112,18 +112,21 @@ const INSERT_STEP = gql`
     $workflow_id: uuid!
     $type: step_type!
     $config: jsonb!
+    $step_order: Int!
   ) {
     insert_workflow_steps_one(
       object: {
         workflow_id: $workflow_id
         type: $type
         config: $config
+        step_order: $step_order
       }
     ) {
       id
       workflow_id
       type
       config
+      step_order
     }
   }
 `
@@ -513,10 +516,11 @@ export default function Home() {
 
       await insertStep({
         variables: {
-          workflow_id:
-            selectedWorkflow,
+          workflow_id: selectedWorkflow,
           type: newStepType,
           config: parsedConfig,
+          step_order:
+          (workflowDetails?.workflow_steps?.length ?? 0) + 1,
         },
       })
 
