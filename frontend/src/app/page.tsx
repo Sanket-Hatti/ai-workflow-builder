@@ -126,7 +126,7 @@ const INSERT_STEP = gql`
 const UPDATE_STEP = gql`
   mutation UpdateStep(
     $id: uuid!
-    $type: String!
+    $type: step_type!
     $config: jsonb!
     $step_order: Int!
   ) {
@@ -158,7 +158,7 @@ const DELETE_STEP = gql`
 const INSERT_TRIGGER = gql`
   mutation InsertTrigger(
     $workflow_id: uuid!
-    $type: String!
+    \$type: step_type!
     $config: jsonb!
   ) {
     insert_workflow_triggers_one(
